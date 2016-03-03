@@ -98,7 +98,6 @@
             </resource>
         </resources>
         <plugins>
-            <!--
             <plugin>
                 <groupId>io.gravitee.maven.plugins</groupId>
                 <artifactId>json-schema-generator-maven-plugin</artifactId>
@@ -111,14 +110,13 @@
                         </goals>
                         <configuration>
                             <includes>
-                                <include>io/gravitee/policy/mock/configuration/MockPolicyConfiguration.class</include>
+                                <include>io/gravitee/policy/cache/configuration/CachePolicyConfiguration.class</include>
                             </includes>
                             <outputDirectory>${json-schema-generator-maven-plugin.outputDirectory}</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
-            -->
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>${maven-assembly-plugin.version}</version>

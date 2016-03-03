@@ -23,6 +23,9 @@ import io.gravitee.gateway.api.http.BodyPart;
 import io.gravitee.gateway.api.http.StringBodyPart;
 import io.gravitee.policy.api.PolicyChain;
 import io.gravitee.policy.api.annotations.OnRequest;
+import io.gravitee.policy.cache.configuration.CachePolicyConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +36,20 @@ import java.util.Map;
  */
 public class CachePolicy {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(CachePolicy.class);
+
     static Map<String, CacheElement> cache = new HashMap<>();
+
+    /**
+     * Cache policy configuration
+     */
+    private final CachePolicyConfiguration cachePolicyConfiguration;
+
+    private static char KEY_SEPARATOR = '_';
+
+    public CachePolicy(final CachePolicyConfiguration cachePolicyConfiguration) {
+        this.cachePolicyConfiguration = cachePolicyConfiguration;
+    }
 
     @OnRequest
     public void onRequest(Request request, Response response, ExecutionContext executionContext, PolicyChain policyChain) {
@@ -44,6 +60,8 @@ public class CachePolicy {
             // Override the invoker for safe request to cache content (if required)
             Invoker defaultInvoker = (Invoker) executionContext.getAttribute(ExecutionContext.ATTR_INVOKER);
             executionContext.setAttribute(ExecutionContext.ATTR_INVOKER, new CacheInvoker(defaultInvoker));
+        } else {
+            LOGGER.debug("Request {} is not a safe request, disable caching for it.", request.id());
         }
 
         policyChain.doNext(request, response);
@@ -60,9 +78,12 @@ public class CachePolicy {
         @Override
         public ClientRequest invoke(ExecutionContext executionContext, Request serverRequest, Handler<ClientResponse> handler) {
             // Here we have to check if there is already a value in cache
-            String cacheId = hash(serverRequest);
+            String cacheId = hash(serverRequest, executionContext);
+            LOGGER.debug("Looking for element in cache with the key {}", cacheId);
 
             if (cache.containsKey(cacheId)) {
+                LOGGER.debug("An element has been found for key {}, returning the cached response to the initial client", cacheId);
+
                 // Ok, there is a value for this request in cache
                 ClientRequest noOpClientRequest = new ClientRequest() {
                     @Override
@@ -98,54 +119,52 @@ public class CachePolicy {
 
                 return noOpClientRequest;
             } else {
+                LOGGER.debug("No element for key {}, invoke upstream with invoker {}", cacheId, invoker.getClass().getName());
+
                 // No value, let's to the default invocation and cache result in response
-                return invoker.invoke(executionContext, serverRequest, new Handler<ClientResponse>() {
-                    @Override
-                    public void handle(ClientResponse clientResponse) {
-                        System.out.println("Receive a response from invoker");
-                        CacheElement element = new CacheElement();
+                return invoker.invoke(executionContext, serverRequest, clientResponse -> {
+                    CacheElement element = new CacheElement();
 
-                        handler.handle(new ClientResponse() {
+                    handler.handle(new ClientResponse() {
+                        final StringBuilder content = new StringBuilder();
 
-                            private StringBuilder content = new StringBuilder();
+                        @Override
+                        public int status() {
+                            element.setStatus(clientResponse.status());
+                            return clientResponse.status();
+                        }
 
-                            @Override
-                            public int status() {
-                                element.setStatus(clientResponse.status());
-                                return clientResponse.status();
-                            }
+                        @Override
+                        public HttpHeaders headers() {
+                            element.setHeaders(clientResponse.headers());
+                            return clientResponse.headers();
+                        }
 
-                            @Override
-                            public HttpHeaders headers() {
-                                element.setHeaders(clientResponse.headers());
-                                return clientResponse.headers();
-                            }
+                        @Override
+                        public ClientResponse bodyHandler(Handler<BodyPart> handler1) {
+                            return clientResponse.bodyHandler(bodyPart -> {
+                                content.append(new String(bodyPart.getBodyPartAsBytes()));
+                                handler1.handle(bodyPart);
+                            });
+                        }
 
-                            @Override
-                            public ClientResponse bodyHandler(Handler<BodyPart> handler) {
-                                return clientResponse.bodyHandler(new Handler<BodyPart>() {
-                                    @Override
-                                    public void handle(BodyPart bodyPart) {
-                                        content.append(new String(bodyPart.getBodyPartAsBytes()));
-                                        handler.handle(bodyPart);
-                                    }
-                                });
-                            }
+                        @Override
+                        public ClientResponse endHandler(Handler<Void> handler1) {
 
-                            @Override
-                            public ClientResponse endHandler(Handler<Void> handler) {
-
-                                return clientResponse.endHandler(new Handler<Void>() {
-                                    @Override
-                                    public void handle(Void result) {
-                                        element.setContent(content.toString());
-                                        cache.put(cacheId, element);
-                                        handler.handle(result);
-                                    }
-                                });
-                            }
-                        });
-                    }
+                            return clientResponse.endHandler(result -> {
+                                // Do not put content if not a success status code
+                                if (element.getStatus() >= 200 && element.getStatus() < 300) {
+                                    element.setContent(content.toString());
+                                    LOGGER.debug("Put response in cache for key {} and request {}", cacheId, serverRequest.id());
+                                    cache.put(cacheId, element);
+                                } else {
+                                    LOGGER.debug("Response for key {} not put in cache because of the status code {}",
+                                            cacheId, element.getStatus());
+                                }
+                                handler1.handle(result);
+                            });
+                        }
+                    });
                 });
             }
         }
@@ -184,7 +203,36 @@ public class CachePolicy {
         }
     }
 
-    static String hash(Request request) {
-        return Integer.toString(request.path().hashCode());
+    /**
+     * Generate a unique identifier for the cache key.
+     *
+     * @param request
+     * @param executionContext
+     * @return
+     */
+    public String hash(Request request, ExecutionContext executionContext) {
+        StringBuilder sb = new StringBuilder();
+        switch (cachePolicyConfiguration.getScope()) {
+            case APPLICATION:
+                sb.append(executionContext.getAttribute(ExecutionContext.ATTR_API)).append(KEY_SEPARATOR);
+                sb.append(executionContext.getAttribute(ExecutionContext.ATTR_APPLICATION)).append(KEY_SEPARATOR);
+                break;
+            case API:
+                sb.append(executionContext.getAttribute(ExecutionContext.ATTR_API)).append(KEY_SEPARATOR);
+                break;
+        }
+
+        sb.append(request.path().hashCode()).append(KEY_SEPARATOR);
+
+        String key = cachePolicyConfiguration.getKey();
+        if (key != null && ! key.isEmpty()) {
+            key = executionContext.getTemplateEngine().convert(key);
+            sb.append(key);
+        } else {
+            // Remove latest separator
+            sb.deleteCharAt(sb.length() - 1);
+        }
+
+        return sb.toString();
     }
 }
