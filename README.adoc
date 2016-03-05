@@ -1,4 +1,4 @@
-= Mock Policy
+= Cache Policy
 
 https://github.com/gravitee-io/gravitee-policy-mock[Source code],
 image:http://build.gravitee.io/jenkins/buildStatus/icon?job=gravitee-policy-mock["Build status", link="http://build.gravitee.io/jenkins/job/gravitee-policy-mock/"]
@@ -8,8 +8,8 @@ image:http://build.gravitee.io/jenkins/buildStatus/icon?job=gravitee-policy-mock
 |===
 |onRequest |onResponse
 
-|
-|
+| X
+| X
 
 |===
 
