@@ -21,6 +21,7 @@ import io.gravitee.gateway.api.*;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.BodyPart;
 import io.gravitee.gateway.api.http.StringBodyPart;
+import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.policy.api.PolicyChain;
 import io.gravitee.policy.api.annotations.OnRequest;
 import io.gravitee.policy.cache.configuration.CachePolicyConfiguration;
@@ -141,7 +142,7 @@ public class CachePolicy {
                         }
 
                         @Override
-                        public ClientResponse bodyHandler(Handler<BodyPart> handler1) {
+                        public ReadStream<BodyPart> bodyHandler(Handler<BodyPart> handler1) {
                             return clientResponse.bodyHandler(bodyPart -> {
                                 content.append(new String(bodyPart.getBodyPartAsBytes()));
                                 handler1.handle(bodyPart);
@@ -149,7 +150,7 @@ public class CachePolicy {
                         }
 
                         @Override
-                        public ClientResponse endHandler(Handler<Void> handler1) {
+                        public ReadStream<BodyPart> endHandler(Handler<Void> handler1) {
 
                             return clientResponse.endHandler(result -> {
                                 // Do not put content if not a success status code
