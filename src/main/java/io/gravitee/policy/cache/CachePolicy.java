@@ -18,9 +18,8 @@ package io.gravitee.policy.cache;
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.gateway.api.*;
+import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
-import io.gravitee.gateway.api.http.BodyPart;
-import io.gravitee.gateway.api.http.StringBodyPart;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.policy.api.PolicyChain;
 import io.gravitee.policy.api.annotations.OnRequest;
@@ -93,7 +92,7 @@ public class CachePolicy {
                     }
 
                     @Override
-                    public ClientRequest write(BodyPart bodyPart) {
+                    public ClientRequest write(Buffer buffer) {
                         return this;
                     }
 
@@ -107,7 +106,7 @@ public class CachePolicy {
                         handler.handle(response);
 
                         if (hasContent) {
-                            response.bodyHandler.handle(new StringBodyPart(element.getContent()));
+                            response.bodyHandler.handle(Buffer.buffer(element.getContent()));
                         }
 
                         response.endHandler.handle(null);
@@ -142,15 +141,15 @@ public class CachePolicy {
                         }
 
                         @Override
-                        public ReadStream<BodyPart> bodyHandler(Handler<BodyPart> handler1) {
-                            return clientResponse.bodyHandler(bodyPart -> {
-                                content.append(new String(bodyPart.getBodyPartAsBytes()));
-                                handler1.handle(bodyPart);
+                        public ReadStream<Buffer> bodyHandler(Handler<Buffer> handler1) {
+                            return clientResponse.bodyHandler(chunk -> {
+                                content.append(Buffer.buffer(chunk.toString()));
+                                handler1.handle(chunk);
                             });
                         }
 
                         @Override
-                        public ReadStream<BodyPart> endHandler(Handler<Void> handler1) {
+                        public ReadStream<Buffer> endHandler(Handler<Void> handler1) {
 
                             return clientResponse.endHandler(result -> {
                                 // Do not put content if not a success status code
@@ -172,7 +171,7 @@ public class CachePolicy {
     }
 
     class CacheClientResponse implements ClientResponse {
-        private Handler<BodyPart> bodyHandler;
+        private Handler<Buffer> bodyHandler;
         private Handler<Void> endHandler;
 
         private final CacheElement cacheElement;
@@ -192,7 +191,7 @@ public class CachePolicy {
         }
 
         @Override
-        public ClientResponse bodyHandler(Handler<BodyPart> bodyPartHandler) {
+        public ClientResponse bodyHandler(Handler<Buffer> bodyPartHandler) {
             this.bodyHandler = bodyPartHandler;
             return this;
         }
