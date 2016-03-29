@@ -27,6 +27,11 @@ public class CachePolicyConfiguration implements PolicyConfiguration {
 
     private CacheScope scope = CacheScope.APPLICATION;
 
+    // Default to 10 minutes
+    private long timeToLiveSeconds = 600;
+
+    private boolean useResponseCacheHeaders = false;
+
     public String getKey() {
         return key;
     }
@@ -41,5 +46,21 @@ public class CachePolicyConfiguration implements PolicyConfiguration {
 
     public void setScope(CacheScope scope) {
         this.scope = scope;
+    }
+
+    public long getTimeToLiveSeconds() {
+        return timeToLiveSeconds;
+    }
+
+    public void setTimeToLiveSeconds(long timeToLiveSeconds) {
+        this.timeToLiveSeconds = timeToLiveSeconds;
+    }
+
+    public boolean isUseResponseCacheHeaders() {
+        return useResponseCacheHeaders;
+    }
+
+    public void setUseResponseCacheHeaders(boolean useResponseCacheHeaders) {
+        this.useResponseCacheHeaders = useResponseCacheHeaders;
     }
 }

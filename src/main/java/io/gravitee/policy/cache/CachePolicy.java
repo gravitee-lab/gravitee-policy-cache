@@ -22,13 +22,18 @@ import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.policy.api.PolicyChain;
+import io.gravitee.policy.api.PolicyResult;
 import io.gravitee.policy.api.annotations.OnRequest;
 import io.gravitee.policy.cache.configuration.CachePolicyConfiguration;
+import io.gravitee.policy.cache.util.CacheControlUtil;
+import io.gravitee.policy.cache.util.ExpiresUtil;
+import io.gravitee.repository.cache.api.CacheManager;
+import io.gravitee.repository.cache.model.Cache;
+import io.gravitee.repository.cache.model.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.Instant;
 
 /**
  * @author David BRASSELY (brasseld at gmail.com)
@@ -38,14 +43,17 @@ public class CachePolicy {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CachePolicy.class);
 
-    static Map<String, CacheElement> cache = new HashMap<>();
-
     /**
      * Cache policy configuration
      */
     private final CachePolicyConfiguration cachePolicyConfiguration;
 
-    private static char KEY_SEPARATOR = '_';
+    private final static char KEY_SEPARATOR = '_';
+    private final static String CACHE_NAME = "gateway-police-cache";
+
+    private final static String X_GRAVITEE_BYPASS_CACHE = "X-Gravitee-Bypass-Cache";
+
+    private Cache cache;
 
     public CachePolicy(final CachePolicyConfiguration cachePolicyConfiguration) {
         this.cachePolicyConfiguration = cachePolicyConfiguration;
@@ -53,15 +61,32 @@ public class CachePolicy {
 
     @OnRequest
     public void onRequest(Request request, Response response, ExecutionContext executionContext, PolicyChain policyChain) {
-        if (request.method() == HttpMethod.GET ||
-                request.method() == HttpMethod.OPTIONS ||
-                request.method() == HttpMethod.HEAD) {
+        boolean bypassCache = Boolean.parseBoolean(request.headers().getFirst(X_GRAVITEE_BYPASS_CACHE));
 
-            // Override the invoker for safe request to cache content (if required)
-            Invoker defaultInvoker = (Invoker) executionContext.getAttribute(ExecutionContext.ATTR_INVOKER);
-            executionContext.setAttribute(ExecutionContext.ATTR_INVOKER, new CacheInvoker(defaultInvoker));
-        } else {
-            LOGGER.debug("Request {} is not a safe request, disable caching for it.", request.id());
+        if (! bypassCache) {
+            if (request.method() == HttpMethod.GET ||
+                    request.method() == HttpMethod.OPTIONS ||
+                    request.method() == HttpMethod.HEAD) {
+
+                // It's safe to do so because a new instance of policy is created for each request.
+                CacheManager cacheManager = executionContext.getComponent(CacheManager.class);
+                if (cacheManager == null) {
+                    policyChain.failWith(PolicyResult.failure("No cache provider has been installed."));
+                    return;
+                }
+
+                cache = cacheManager.getCache(CACHE_NAME);
+                if (cache == null) {
+                    policyChain.failWith(PolicyResult.failure("No cache named [ " + CACHE_NAME + " ] has been found."));
+                    return;
+                }
+
+                // Override the invoker for safe request to cache content (if required)
+                Invoker defaultInvoker = (Invoker) executionContext.getAttribute(ExecutionContext.ATTR_INVOKER);
+                executionContext.setAttribute(ExecutionContext.ATTR_INVOKER, new CacheInvoker(defaultInvoker));
+            } else {
+                LOGGER.debug("Request {} is not a safe request, disable caching for it.", request.id());
+            }
         }
 
         policyChain.doNext(request, response);
@@ -77,11 +102,13 @@ public class CachePolicy {
 
         @Override
         public ClientRequest invoke(ExecutionContext executionContext, Request serverRequest, Handler<ClientResponse> handler) {
-            // Here we have to check if there is already a value in cache
+            // Here we have to check if there is a value in cache
             String cacheId = hash(serverRequest, executionContext);
             LOGGER.debug("Looking for element in cache with the key {}", cacheId);
 
-            if (cache.containsKey(cacheId)) {
+            Element elt = cache.get(cacheId);
+
+            if (elt != null) {
                 LOGGER.debug("An element has been found for key {}, returning the cached response to the initial client", cacheId);
 
                 // Ok, there is a value for this request in cache
@@ -98,15 +125,15 @@ public class CachePolicy {
 
                     @Override
                     public void end() {
-                        CacheElement element = cache.get(cacheId);
-                        CacheClientResponse response = new CacheClientResponse(element);
+                        CacheElement cacheElement = (CacheElement) elt.value();
+                        CacheClientResponse response = new CacheClientResponse(cacheElement);
 
-                        boolean hasContent = (element.getContent() != null && ! element.getContent().isEmpty());
+                        boolean hasContent = (cacheElement.getContent() != null && ! cacheElement.getContent().isEmpty());
 
                         handler.handle(response);
 
                         if (hasContent) {
-                            response.bodyHandler.handle(Buffer.buffer(element.getContent()));
+                            response.bodyHandler.handle(Buffer.buffer(cacheElement.getContent()));
                         }
 
                         response.endHandler.handle(null);
@@ -121,7 +148,7 @@ public class CachePolicy {
             } else {
                 LOGGER.debug("No element for key {}, invoke upstream with invoker {}", cacheId, invoker.getClass().getName());
 
-                // No value, let's to the default invocation and cache result in response
+                // No value, let's do the default invocation and cache result in response
                 return invoker.invoke(executionContext, serverRequest, clientResponse -> {
                     CacheElement element = new CacheElement();
 
@@ -155,8 +182,34 @@ public class CachePolicy {
                                 // Do not put content if not a success status code
                                 if (element.getStatus() >= 200 && element.getStatus() < 300) {
                                     element.setContent(content.toString());
+
+                                    long timeToLive = -1;
+                                    if (cachePolicyConfiguration.isUseResponseCacheHeaders()) {
+                                        timeToLive = resolveTimeToLive(clientResponse);
+                                    }
+                                    if (cachePolicyConfiguration.getTimeToLiveSeconds() < timeToLive) {
+                                        timeToLive = cachePolicyConfiguration.getTimeToLiveSeconds();
+                                    }
+
+                                    final long timeToLiveCache = timeToLive;
+
                                     LOGGER.debug("Put response in cache for key {} and request {}", cacheId, serverRequest.id());
-                                    cache.put(cacheId, element);
+                                    cache.put(new Element() {
+                                        @Override
+                                        public Object key() {
+                                            return cacheId;
+                                        }
+
+                                        @Override
+                                        public Object value() {
+                                            return element;
+                                        }
+
+                                        @Override
+                                        public int timeToLive() {
+                                            return (int) timeToLiveCache;
+                                        }
+                                    });
                                 } else {
                                     LOGGER.debug("Response for key {} not put in cache because of the status code {}",
                                             cacheId, element.getStatus());
@@ -234,5 +287,37 @@ public class CachePolicy {
         }
 
         return sb.toString();
+    }
+
+    public long resolveTimeToLive(ClientResponse response) {
+        long timeToLive = -1;
+        if (cachePolicyConfiguration.isUseResponseCacheHeaders()) {
+            timeToLive = timeToLiveFromResponse(response);
+        }
+
+        if (timeToLive != -1 && cachePolicyConfiguration.getTimeToLiveSeconds() < timeToLive) {
+            timeToLive = cachePolicyConfiguration.getTimeToLiveSeconds();
+        }
+
+        return timeToLive;
+    }
+
+    public static long timeToLiveFromResponse(ClientResponse response) {
+        long timeToLive = -1;
+            CacheControl cacheControl = CacheControlUtil.parseCacheControl(response.headers().getFirst(HttpHeaders.CACHE_CONTROL));
+
+            if (cacheControl != null && cacheControl.getSMaxAge() != -1) {
+                timeToLive = cacheControl.getSMaxAge();
+            } else if (cacheControl != null && cacheControl.getMaxAge() != -1) {
+                timeToLive = cacheControl.getMaxAge();
+            } else {
+                Instant expiresAt = ExpiresUtil.parseExpires(response.headers().getFirst(HttpHeaders.EXPIRES));
+                if (expiresAt != null) {
+                    long expiresInSeconds = (expiresAt.toEpochMilli() - System.currentTimeMillis()) / 1000;
+                    timeToLive = (expiresInSeconds < 0) ? -1 : expiresInSeconds;
+                }
+            }
+
+        return timeToLive;
     }
 }
