@@ -49,7 +49,7 @@ public class CachePolicy {
     private final CachePolicyConfiguration cachePolicyConfiguration;
 
     private final static char KEY_SEPARATOR = '_';
-    private final static String CACHE_NAME = "gateway-police-cache";
+    private final static String CACHE_NAME = "policy-cache";
 
     private final static String X_GRAVITEE_BYPASS_CACHE = "X-Gravitee-Bypass-Cache";
 
@@ -187,7 +187,7 @@ public class CachePolicy {
                                     if (cachePolicyConfiguration.isUseResponseCacheHeaders()) {
                                         timeToLive = resolveTimeToLive(clientResponse);
                                     }
-                                    if (cachePolicyConfiguration.getTimeToLiveSeconds() < timeToLive) {
+                                    if (timeToLive == -1 || cachePolicyConfiguration.getTimeToLiveSeconds() < timeToLive) {
                                         timeToLive = cachePolicyConfiguration.getTimeToLiveSeconds();
                                     }
 

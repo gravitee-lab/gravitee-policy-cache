@@ -1,0 +1,32 @@
+{
+  "type" : "object",
+  "id" : "urn:jsonschema:io:gravitee:policy:cache:configuration:CachePolicyConfiguration",
+  "properties" : {
+    "key" : {
+      "title": "Key",
+      "description": "The key used to store the element (support EL).",
+      "type" : "string"
+    },
+    "timeToLiveSeconds" : {
+      "title": "Time to live (in seconds)",
+      "default": 600,
+      "description": "Time to live of the element put in cache (Default to 10 minutes).",
+      "type" : "integer"
+    },
+    "useResponseCacheHeaders" : {
+      "title": "Use response headers",
+      "description": "Time to live based on 'Cache-Control' and / or 'Expires' headers from response.",
+      "type" : "boolean"
+    },
+    "scope" : {
+      "title": "Scope",
+      "description": "The cached response can be set only for a consumer application or for the entire API.",
+      "type" : "string",
+      "default": "API",
+      "enum" : [ "API", "APPLICATION" ]
+    }
+  },
+  "required": [
+    "timeToLiveSeconds"
+  ]
+}
