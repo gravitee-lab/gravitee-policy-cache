@@ -20,9 +20,9 @@
     },
     "scope" : {
       "title": "Scope",
-      "description": "The cached response can be set only for a consumer application or for the entire API.",
+      "description": "The cached response can be set for a single consuming application or for all applications.<br><strong>WARNING:</strong> Please be aware that by using an \"API\" scope, data will be shared with all consumers (applications) !",
       "type" : "string",
-      "default": "API",
+      "default": "APPLICATION",
       "enum" : [ "API", "APPLICATION" ]
     }
   },
