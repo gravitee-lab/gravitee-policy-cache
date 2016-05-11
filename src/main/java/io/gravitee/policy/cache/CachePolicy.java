@@ -51,6 +51,7 @@ public class CachePolicy {
     private final static char KEY_SEPARATOR = '_';
     private final static String CACHE_NAME = "policy-cache";
 
+    private final static String BYPASS_CACHE_QUERY_PARAMETER = "bypass-cache";
     private final static String X_GRAVITEE_BYPASS_CACHE = "X-Gravitee-Bypass-Cache";
 
     private Cache cache;
@@ -61,7 +62,7 @@ public class CachePolicy {
 
     @OnRequest
     public void onRequest(Request request, Response response, ExecutionContext executionContext, PolicyChain policyChain) {
-        boolean bypassCache = Boolean.parseBoolean(request.headers().getFirst(X_GRAVITEE_BYPASS_CACHE));
+        boolean bypassCache = lookForByPass(request);
 
         if (! bypassCache) {
             if (request.method() == HttpMethod.GET ||
@@ -319,5 +320,25 @@ public class CachePolicy {
             }
 
         return timeToLive;
+    }
+
+    private boolean lookForByPass(Request request) {
+        // 1_ First, search in HTTP headers
+        String byPassCache = request.headers().getFirst(X_GRAVITEE_BYPASS_CACHE);
+
+        if (byPassCache == null || byPassCache.isEmpty()) {
+            // 2_ If not found, search in query parameters
+            byPassCache = (request.parameters().getOrDefault(BYPASS_CACHE_QUERY_PARAMETER, null) == null)
+                        ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
+
+            // Do not propagate specific query parameter
+            request.parameters().remove(BYPASS_CACHE_QUERY_PARAMETER);
+        } else {
+            // Do not propagate specific header
+            request.headers().remove(X_GRAVITEE_BYPASS_CACHE);
+            byPassCache = Boolean.TRUE.toString();
+        }
+
+        return Boolean.parseBoolean(byPassCache);
     }
 }
