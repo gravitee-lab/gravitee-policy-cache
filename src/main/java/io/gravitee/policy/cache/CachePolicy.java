@@ -129,12 +129,12 @@ public class CachePolicy {
                         CacheElement cacheElement = (CacheElement) elt.value();
                         CacheClientResponse response = new CacheClientResponse(cacheElement);
 
-                        boolean hasContent = (cacheElement.getContent() != null && ! cacheElement.getContent().isEmpty());
+                        boolean hasContent = (cacheElement.getContent() != null && cacheElement.getContent().length() > 0);
 
                         handler.handle(response);
 
                         if (hasContent) {
-                            response.bodyHandler.handle(Buffer.buffer(cacheElement.getContent()));
+                            response.bodyHandler.handle(cacheElement.getContent());
                         }
 
                         response.endHandler.handle(null);
@@ -154,7 +154,7 @@ public class CachePolicy {
                     CacheElement element = new CacheElement();
 
                     handler.handle(new ClientResponse() {
-                        final StringBuilder content = new StringBuilder();
+                        final Buffer content = Buffer.buffer();
 
                         @Override
                         public int status() {
@@ -171,7 +171,7 @@ public class CachePolicy {
                         @Override
                         public ReadStream<Buffer> bodyHandler(Handler<Buffer> handler1) {
                             return clientResponse.bodyHandler(chunk -> {
-                                content.append(Buffer.buffer(chunk.toString()));
+                                content.appendBuffer(chunk);
                                 handler1.handle(chunk);
                             });
                         }
@@ -182,7 +182,7 @@ public class CachePolicy {
                             return clientResponse.endHandler(result -> {
                                 // Do not put content if not a success status code
                                 if (element.getStatus() >= 200 && element.getStatus() < 300) {
-                                    element.setContent(content.toString());
+                                    element.setContent(content);
 
                                     long timeToLive = -1;
                                     if (cachePolicyConfiguration.isUseResponseCacheHeaders()) {

@@ -16,7 +16,7 @@
 package io.gravitee.policy.cache;
 
 import io.gravitee.common.http.HttpHeaders;
-import io.gravitee.common.http.HttpStatusCode;
+import io.gravitee.gateway.api.buffer.Buffer;
 
 /**
  * @author David BRASSELY (brasseld at gmail.com)
@@ -28,13 +28,13 @@ public class CacheElement {
 
     private HttpHeaders headers;
 
-    private String content;
+    private Buffer content;
 
-    public String getContent() {
+    public Buffer getContent() {
         return content;
     }
 
-    public void setContent(String content) {
+    public void setContent(Buffer content) {
         this.content = content;
     }
 
