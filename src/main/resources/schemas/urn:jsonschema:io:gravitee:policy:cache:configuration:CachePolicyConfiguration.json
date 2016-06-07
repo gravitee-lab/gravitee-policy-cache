@@ -2,6 +2,11 @@
   "type" : "object",
   "id" : "urn:jsonschema:io:gravitee:policy:cache:configuration:CachePolicyConfiguration",
   "properties" : {
+    "cacheName" : {
+      "title": "Cache name",
+      "description": "The cache resource used to store the element.",
+      "type" : "string"
+    },
     "key" : {
       "title": "Key",
       "description": "The key used to store the element (support EL).",
@@ -27,6 +32,7 @@
     }
   },
   "required": [
+    "cacheName",
     "timeToLiveSeconds"
   ]
 }

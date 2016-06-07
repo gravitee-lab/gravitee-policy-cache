@@ -27,9 +27,10 @@ import io.gravitee.policy.api.annotations.OnRequest;
 import io.gravitee.policy.cache.configuration.CachePolicyConfiguration;
 import io.gravitee.policy.cache.util.CacheControlUtil;
 import io.gravitee.policy.cache.util.ExpiresUtil;
-import io.gravitee.repository.cache.api.CacheManager;
-import io.gravitee.repository.cache.model.Cache;
-import io.gravitee.repository.cache.model.Element;
+import io.gravitee.resource.api.ResourceManager;
+import io.gravitee.resource.cache.Cache;
+import io.gravitee.resource.cache.CacheResource;
+import io.gravitee.resource.cache.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,12 +50,11 @@ public class CachePolicy {
     private final CachePolicyConfiguration cachePolicyConfiguration;
 
     private final static char KEY_SEPARATOR = '_';
-    private final static String CACHE_NAME = "policy-cache";
 
     private final static String BYPASS_CACHE_QUERY_PARAMETER = "bypass-cache";
     private final static String X_GRAVITEE_BYPASS_CACHE = "X-Gravitee-Bypass-Cache";
 
-    private Cache cache;
+    private volatile Cache cache;
 
     public CachePolicy(final CachePolicyConfiguration cachePolicyConfiguration) {
         this.cachePolicyConfiguration = cachePolicyConfiguration;
@@ -70,15 +70,17 @@ public class CachePolicy {
                     request.method() == HttpMethod.HEAD) {
 
                 // It's safe to do so because a new instance of policy is created for each request.
-                CacheManager cacheManager = executionContext.getComponent(CacheManager.class);
-                if (cacheManager == null) {
-                    policyChain.failWith(PolicyResult.failure("No cache provider has been installed."));
+                String cacheName = cachePolicyConfiguration.getCacheName();
+                CacheResource cacheResource = executionContext.getComponent(ResourceManager.class)
+                        .getResource(cacheName, CacheResource.class);
+                if (cacheResource == null) {
+                    policyChain.failWith(PolicyResult.failure("No cache has been defined with name " + cacheName));
                     return;
                 }
 
-                cache = cacheManager.getCache(CACHE_NAME);
+                cache = cacheResource.getCache();
                 if (cache == null) {
-                    policyChain.failWith(PolicyResult.failure("No cache named [ " + CACHE_NAME + " ] has been found."));
+                    policyChain.failWith(PolicyResult.failure("No cache named [ " + cacheName + " ] has been found."));
                     return;
                 }
 
