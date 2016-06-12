@@ -23,6 +23,8 @@ import io.gravitee.policy.api.PolicyConfiguration;
  */
 public class CachePolicyConfiguration implements PolicyConfiguration {
 
+    private String cacheName;
+
     private String key;
 
     private CacheScope scope = CacheScope.APPLICATION;
@@ -31,6 +33,14 @@ public class CachePolicyConfiguration implements PolicyConfiguration {
     private long timeToLiveSeconds = 600;
 
     private boolean useResponseCacheHeaders = false;
+
+    public String getCacheName() {
+        return cacheName;
+    }
+
+    public void setCacheName(String cacheName) {
+        this.cacheName = cacheName;
+    }
 
     public String getKey() {
         return key;
