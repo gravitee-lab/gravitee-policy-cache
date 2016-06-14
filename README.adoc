@@ -50,22 +50,19 @@ The key used to store element in cache can use the internal Expression Language 
 [source, json]
 .Key based on the productId query parameter
 ----
-"key": "{#request.params['productId']}",
-}
+"key": "{#request.params['productId']}"
 ----
 
 [source, json]
 .Key based on the api-key of the consumer
 ----
-"key": "{#request.headers['X-Gravitee-Api-Key']}",
-}
+"key": "{#request.headers['X-Gravitee-Api-Key']}"
 ----
 
 [source, json]
 .Key based on an API's property and a query parameter
 ----
-"key": "{#properties['siteID']}-{#request.params['productId']}",
-}
+"key": "{#properties['siteID']}-{#request.params['productId']}"
 ----
 
 
