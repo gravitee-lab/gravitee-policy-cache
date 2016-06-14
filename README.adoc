@@ -1,21 +1,33 @@
 = Cache Policy
 
-https://github.com/gravitee-io/gravitee-policy-cache[Source code],
-image:http://build.gravitee.io/jenkins/buildStatus/icon?job=gravitee-policy-cache["Build status", link="http://build.gravitee.io/jenkins/job/gravitee-policy-cache/"]
+ifdef::env-github[]
+image:https://img.shields.io/github/watchers/gravitee-io/gravitee-policy-cache.svg?style=social&maxAge=2592000)["GitHub", link="https://github.com/gravitee-io/gravitee-policy-cache"]
+image:https://ci.gravitee.io/buildStatus/icon?job=gravitee-io/gravitee-policy-cache/master["Build status", link="https://ci.gravitee.io/job/gravitee-io/job/gravitee-policy-cache/"]
+image:https://badges.gitter.im/Join Chat.svg["Gitter", link="https://gitter.im/gravitee-io/gravitee-io?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"]
+endif::[]
 
-== Scope
+== Phase
 
 |===
 |onRequest |onResponse
 
 | X
-| X
+|
 
 |===
 
 == Description
 
-Todo
+Cache policy enables the user to _cache_ upstream response (content, status and headers) and avoid subsequent calls to
+the backend.
+
+This policy is based on a _cache resource_ defined at the API level and let the underlying cache system to follow the
+API lifecycle (stop / start). (_TODO_: provide a link to cache resource)
+This means that a _cache resource_ must be defined to be used by this policy (the resource name is specified in the
+policy configuration: _cacheName_)
+
+Consumer can by-pass cache by adding a _bypass-cache=true_ query parameter or by providing a
+_X-Gravitee-Bypass-Cache=true_ HTTP header.
 
 == Configuration
 
@@ -24,19 +36,47 @@ You can configure the policy with the following options :
 |===
 |Property |Required |Description |Type |Default
 
-|Todo
-|Todo
-|Todo
-|Todo
-|_todo_
+|cacheName|X|The cache resource used to store the element|string|
+|key||The key used to store the element (support EL)|string|
+|timeToLiveSeconds|X|Time to live of the element put in cache (Default to 10 minutes)|integer|600
+|useResponseCacheHeaders||Time to live based on 'Cache-Control' and / or 'Expires' headers from backend response|boolean|false
+|scope|X|Cached response can be set for a single consumer (application) or for all applications.<br><strong>WARNING:</strong> Please be aware that by using an \"API\" scope, data will be shared between all consumers !|API / APPLICATION|APPLICATION
 
 |===
 
 
+The key used to store element in cache can use the internal Expression Language to provide a dynamic value.
+
 [source, json]
-.Sample
+.Key based on the productId query parameter
+----
+"key": "{#request.params['productId']}",
+}
+----
+
+[source, json]
+.Key based on the api-key of the consumer
+----
+"key": "{#request.headers['X-Gravitee-Api-Key']}",
+}
+----
+
+[source, json]
+.Key based on an API's property and a query parameter
+----
+"key": "{#properties['siteID']}-{#request.params['productId']}",
+}
+----
+
+
+[source, json]
+.Configuration example
 ----
 "cache": {
-  "todo": true
+    "cacheName": "policy-cache",
+    "key": "{#request.params['productId']}",
+    "timeToLiveSeconds": 600,
+    "useResponseCacheHeaders": false,
+    "scope": "APPLICATION"
 }
 ----

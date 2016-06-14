@@ -25,7 +25,7 @@
     },
     "scope" : {
       "title": "Scope",
-      "description": "The cached response can be set for a single consuming application or for all applications.<br><strong>WARNING:</strong> Please be aware that by using an \"API\" scope, data will be shared with all consumers (applications) !",
+      "description": "Cached response can be set for a single consumer (application) or for all consumers.<br><strong>WARNING:</strong> Please be aware that by using an \"API\" scope, data will be shared between all consumers!",
       "type" : "string",
       "default": "APPLICATION",
       "enum" : [ "API", "APPLICATION" ]
