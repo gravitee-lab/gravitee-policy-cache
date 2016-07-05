@@ -346,7 +346,7 @@ public class CachePolicy {
         }
 
         try {
-            return (cacheAction != null) ? CacheAction.valueOf(cacheAction) : null;
+            return (cacheAction != null) ? CacheAction.valueOf(cacheAction.toUpperCase()) : null;
         } catch (IllegalArgumentException iae) {
             return null;
         }
