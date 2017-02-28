@@ -21,9 +21,11 @@ Cache policy enables the user to _cache_ upstream response (content, status and 
 the backend.
 
 This policy is based on a _cache resource_ defined at the API level and let the underlying cache system to follow the
-API lifecycle (stop / start). (_TODO_: provide a link to cache resource)
+API lifecycle (stop / start). Please have a look to <<apim_resources_cache.adoc, Cache resource>>
 This means that a _cache resource_ must be defined to be used by this policy (the resource name is specified in the
-policy configuration: _cacheName_)
+policy configuration: _cacheName_).
+
+WARNING: Cache policy requires a cache resource. If none is defined or not well configured, the API will not be deployed.
 
 Consumer can by-pass cache by adding a _bypass-cache=true_ query parameter or by providing a
 _X-Gravitee-Bypass-Cache=true_ HTTP header.
