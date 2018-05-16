@@ -27,9 +27,13 @@ import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyResponse;
 import io.gravitee.gateway.api.stream.ReadStream;
+import io.gravitee.policy.api.ChainScope;
 import io.gravitee.policy.api.PolicyChain;
 import io.gravitee.policy.api.PolicyResult;
+import io.gravitee.policy.api.annotations.Category;
 import io.gravitee.policy.api.annotations.OnRequest;
+import io.gravitee.policy.api.annotations.Policy;
+import io.gravitee.policy.api.annotations.Scope;
 import io.gravitee.policy.cache.configuration.CachePolicyConfiguration;
 import io.gravitee.policy.cache.proxy.CacheProxyConnection;
 import io.gravitee.policy.cache.resource.CacheElement;
@@ -48,6 +52,10 @@ import java.time.Instant;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
+@Policy(
+        category = @Category(io.gravitee.policy.api.Category.PERFORMANCE),
+        scope = @Scope(ChainScope.API)
+)
 public class CachePolicy {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CachePolicy.class);
